@@ -1,0 +1,71 @@
+<h1>Teacher Dashboard</h1>
+
+{% if error %}
+<p style="color:red;">{{ error }}</p>
+{% endif %}
+{% if success %}
+<p style="color:green;">{{ success }}</p>
+{% endif %}
+
+<h2>Add a New Student</h2>
+<form method="POST">
+    <input type="hidden" name="action" value="add_student">
+    Username: <input type="text" name="username"><br>
+    Password: <input type="password" name="password"><br>
+    Starting Funds: <input type="text" name="funds"><br>
+    <input type="submit" value="Add Student">
+</form>
+
+<h2>Registered Students</h2>
+<table border="1" cellpadding="5">
+    <tr>
+        <th>Username</th>
+        <th>Password</th>
+        <th>Funds</th>
+        <th>Add Funds</th>
+        <th>Change Password</th>
+    </tr>
+    {% for student in students %}
+    <tr>
+        <td style="padding-left: 30px;">
+            - <a href="{{ url_for('teacher.view_student_portfolio', student_id=student.id) }}">
+                {{ student.username }}
+            </a>
+        </td>
+        <td>{{ student.password }}</td>
+        <td>${{ '%.2f' % student.funds }}</td>
+
+        <!-- Add Funds -->
+        <td>
+            <form method="POST">
+                <input type="hidden" name="action" value="add_funds">
+                <input type="hidden" name="student_id" value="{{ student.id }}">
+                <input type="number" name="amount" step="0.01" placeholder="+$" required>
+                <input type="submit" value="Add">
+            </form>
+        </td>
+
+        <!-- Change Password -->
+        <td>
+            <form method="POST">
+                <input type="hidden" name="action" value="change_password">
+                <input type="hidden" name="student_id" value="{{ student.id }}">
+                <input type="text" name="new_password" placeholder="New password" required>
+                <input type="submit" value="Update">
+            </form>
+        </td>
+        <td>
+        <!-- Add Funds and Set Password buttons go here -->
+
+        <!-- Delete Button -->
+            <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this student?');">
+                <input type="hidden" name="action" value="delete_student">
+                <input type="hidden" name="student_id" value="{{ student.id }}">
+                <input type="submit" value="Delete">
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+<p><a href="{{ url_for('auth.logout') }}">Logout</a></p>

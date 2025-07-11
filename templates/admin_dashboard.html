@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+</head>
+<body>
+
+<h1>Admin Dashboard</h1>
+
+{% if error %}
+    <p style="color:red;">{{ error }}</p>
+{% endif %}
+{% if success %}
+    <p style="color:green;">{{ success }}</p>
+{% endif %}
+
+<h2>Teachers and Their Students</h2>
+
+<table border="1" cellpadding="5" cellspacing="0">
+    <tr>
+        <th>Email / Username</th>
+        <th>Role</th>
+        <th>Password</th>
+        <th>Change Password</th>
+        <th>Actions</th>
+    </tr>
+
+    {% for teacher in teachers %}
+    <tr>
+        <td><strong>{{ teacher.email }}</strong></td>
+        <td>Teacher</td>
+        <td>
+            <input type="text" value="{{ teacher.password }}" readonly>
+        </td>
+        <td>
+            <form method="POST">
+                <input type="hidden" name="action" value="change_password">
+                <input type="hidden" name="user_id" value="{{ teacher.id }}">
+                <input type="text" name="new_password" placeholder="New password" required>
+                <input type="submit" value="Update">
+            </form>
+        </td>
+        <td>
+            <form method="POST" style="display:inline;">
+                <input type="hidden" name="user_id" value="{{ teacher.id }}">
+                <input type="hidden" name="action" value="delete">
+                <input type="submit" value="Delete Teacher and Students"
+                       onclick="return confirm('Are you sure you want to delete this teacher and all their students?')">
+            </form>
+        </td>
+    </tr>
+
+    {% if teacher.students %}
+        {% for student in teacher.students %}
+        <tr>
+            <td style="padding-left: 30px;">- {{ student.username }}</td>
+            <td>Student</td>
+            <td>
+                <input type="text" value="{{ student.password }}" readonly>
+            </td>
+            <td>
+                <form method="POST">
+                    <input type="hidden" name="action" value="change_password">
+                    <input type="hidden" name="user_id" value="{{ student.id }}">
+                    <input type="text" name="new_password" placeholder="New password" required>
+                    <input type="submit" value="Update">
+                </form>
+            </td>
+            <td>
+                <form method="POST" style="display:inline;">
+                    <input type="hidden" name="user_id" value="{{ student.id }}">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="submit" value="Delete Student"
+                           onclick="return confirm('Delete student {{ student.username }}?')">
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    {% endif %}
+    {% endfor %}
+</table>
+
+<a href="{{ url_for('admin.manage_stocks') }}">
+    <button>Manage Stocks</button>
+</a>
+
+
+<p><a href="{{ url_for('auth.logout') }}">Logout</a></p>
+
+
+</body>
+</html>

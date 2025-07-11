@@ -1,0 +1,253 @@
+<h2>{{ student.username }}'s Portfolio</h2>
+<a href="{{ url_for('teacher.dashboard') }}">← Back to Dashboard</a>
+
+<table border="1">
+    <tr>
+        <th>Stock</th>
+        <th>Shares</th>
+        <th>Current Value per Share</th>
+        <th>Total Value of this Stock owned</th>
+        <th>Total Paid</th>
+        <th>Buy/Sell</th>
+    </tr>
+    {% for stock in portfolio %}
+    <tr>
+        <td>{{ stock.symbol }}</td>
+        <td>{{ stock.quantity }}</td>
+        <td>{{ stock.current_price }}</td>
+        <td>{{ stock.total_value }}</td>
+        <td>{{ stock.total_paid }}</td>
+        <td>
+            <a href="#"
+                class="stock-link"
+                data-id="{{ stock.stock_id }}"
+                data-name="{{ stock.name }}"
+                data-price="{{ stock.current_price }}">
+                {{ stock.name }}
+            </a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+<!-- Stock Trade Modal -->
+<div id="tradeModal" style="display:none; position:fixed; top:10%; left:10%; width:80%; height:75%; background:#fff; border:2px solid #000; padding:1rem; overflow:auto; z-index:1000;">
+    <button onclick="document.getElementById('tradeModal').style.display='none'" style="position:absolute; top:0.5rem; right:1rem; font-weight:bold;">❌</button>
+    
+    <h3 id="tradeTitle">
+    <span id="stockName"></span>
+    <small style="font-weight:normal;">@ <span id="stockPriceDisplay">0</span> Gold</small>
+    </h3>
+
+    <!-- BUY/SELL FORM (now at the top) -->
+    <form id="tradeForm" onsubmit="submitTrade(event)">
+        <input type="hidden" name="stock_id" id="stockIdInput">
+        <input type="hidden" id="stockPrice" value="0">
+
+        <label><strong>Buy Shares:</strong>
+            <input type="number" name="buy_quantity" id="buyQuantity" min="0" oninput="updateBuyTotal()">
+        </label>
+        <span>→ Total Cost: <strong><span id="buyTotal">0</span> Gold</strong></span>
+        <br><br>
+
+        <label><strong>Sell Shares:</strong>
+            <input type="number" name="sell_quantity" id="sellQuantity" min="0" oninput="updateSellTotal()">
+        </label>
+        <span>→ Total Earnings: <strong><span id="sellTotal">0</span> Gold</strong></span>
+        <br><br>
+
+        <button type="submit">💸 Confirm Trade</button>
+    </form>
+
+    <hr>
+
+    <!-- STOCK INFO & GRAPH BELOW -->
+    <p id="holdingInfo" style="margin-top: 1rem;"></p>
+    <canvas id="studentStockChart" width="600" height="300"></canvas>
+</div>
+
+<script>
+function updateBuyTotal() {
+    const price = parseFloat(document.getElementById("stockPrice").value) || 0;
+    const qty = parseInt(document.getElementById("buyQuantity").value) || 0;
+    document.getElementById("buyTotal").innerText = (price * qty).toFixed(2);
+}
+
+function updateSellTotal() {
+    const price = parseFloat(document.getElementById("stockPrice").value) || 0;
+    const qty = parseInt(document.getElementById("sellQuantity").value) || 0;
+    document.getElementById("sellTotal").innerText = (price * qty).toFixed(2);
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+function showStudentStockPopup(stockId, stockName, stockPrice) {
+    console.log("Received stockPrice:", stockPrice);
+
+    const parsedPrice = parseFloat(stockPrice);
+
+    document.getElementById('stockIdInput').value = stockId;
+    document.getElementById('stockPrice').value = parsedPrice;
+    document.getElementById('stockName').innerText = stockName;
+    document.getElementById('stockPriceDisplay').innerText = parsedPrice.toFixed(2);
+
+    document.getElementById('buyQuantity').value = "";
+    document.getElementById('sellQuantity').value = "";
+
+    updateBuyTotal();
+    updateSellTotal();
+
+    document.getElementById('tradeModal').style.display = 'block';
+
+    fetch(`/student/holdings/${stockId}`)
+        .then(res => res.json())
+        .then(info => {
+            document.getElementById('holdingInfo').innerText =
+               `You own ${info.quantity} shares worth ${info.total_value.toFixed(2)}`;
+        })
+        .catch(err => {
+            console.error("Failed to fetch holdings:", err);
+        });
+
+    fetch(`/teacher/stock-history/${stockId}`)
+        .then(response => response.json())
+        .then(data => {
+            const labels = data.map(point => point.timestamp);
+            const prices = data.map(point => point.price);
+            const ctx = document.getElementById('studentStockChart').getContext('2d');
+            if (window.studentChart) window.studentChart.destroy();
+            window.studentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: stockName,
+                        data: prices,
+                        borderWidth: 2,
+                        fill: false
+                    }]
+                }
+            });
+        });
+}
+</script>
+
+<script>
+function submitTrade(event) {
+    event.preventDefault();
+
+    const stockId = document.getElementById('stockIdInput').value;
+    const buyQty = parseInt(document.getElementById('buyQuantity').value) || 0;
+    const sellQty = parseInt(document.getElementById('sellQuantity').value) || 0;
+
+    fetch('/student/trade-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            stock_id: stockId,
+            buy_quantity: buyQty,
+            sell_quantity: sellQty
+        })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error("Trade failed.");
+        return response.json();
+    })
+    .then(data => {
+        alert("✅ Trade successful!");
+        document.getElementById('tradeModal').style.display = 'none';
+        window.location.href = "/student/portfolio";
+    })
+    .catch(err => {
+        alert("❌ Trade failed: " + err.message);
+    });
+}
+</script>
+
+<script>
+document.querySelectorAll(".stock-link").forEach(link => {
+    link.addEventListener("click", function (e) {
+        e.preventDefault();
+        const id = this.dataset.id;
+        const name = this.dataset.name;
+        const price = parseFloat(this.dataset.price);
+        showStudentStockPopup(id, name, price);
+    });
+});
+</script>
+
+<h3 style="margin-top: 2rem;">📈 Portfolio Performance</h3>
+<div style="width: 60%; margin-top: 2rem auto;">
+    <canvas id="portfolioChart" height="300"></canvas>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 2rem;">
+    <!-- Portfolio Value Over Time (Line Chart) -->
+    <div style="width: 55%;">
+        <h4>Portfolio Value Over Time</h4>
+        <canvas id="portfolioChart" height="300"></canvas>
+    </div>
+
+    <!-- Portfolio Composition (Pie Chart) -->
+    <div style="width: 35%;">
+        <h4>Portfolio Composition</h4>
+        <canvas id="portfolioPieChart" height="300"></canvas>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    fetch(`/teacher/student/{{ student.id }}/portfolio-history`)
+        .then(res => res.json())
+        .then(data => {
+            const labels = data.map(point => point.timestamp);
+            const values = data.map(point => point.value);
+
+            const ctx = document.getElementById("portfolioChart").getContext("2d");
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: "Total Portfolio Value",
+                        data: values,
+                        borderWidth: 2,
+                        fill: false
+                    }]
+                }
+            });
+        })
+        .catch(err => {
+            console.error("Failed to load portfolio history", err);
+        });
+});
+</script>
+
+<script>
+    const portfolioLabels = {{ portfolio_names | tojson | safe }};
+    const portfolioValues = {{ portfolio_values | tojson | safe }};
+
+    // Pie chart: Portfolio composition
+    const pieCtx = document.getElementById("portfolioPieChart").getContext("2d");
+    new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+            labels: portfolioLabels,
+            datasets: [{
+                label: 'Composition',
+                data: portfolioValues,
+                backgroundColor: [
+                    '#6a0dad', '#f39c12', '#3498db', '#2ecc71', '#e74c3c',
+                    '#9b59b6', '#1abc9c', '#e67e22', '#95a5a6', '#34495e'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+</script>

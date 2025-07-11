@@ -1,0 +1,45 @@
+<h2>Login</h2>
+
+{% if error %}
+<p style="color: red;">{{ error }}</p>
+{% endif %}
+
+<form method="POST">
+    <label><input type="radio" name="role" value="teacher" checked> I am a Teacher</label>
+    <label><input type="radio" name="role" value="student"> I am a Student</label>
+    <br><br>
+
+    <!-- Teacher login -->
+    <div id="teacher-login">
+        Email or Username: <input type="text" name="email_or_username"><br>
+        Password: <input type="password" name="password"><br>
+    </div>
+
+    <!-- Student login -->
+    <div id="student-login" style="display: none;">
+        Student Username: <input type="text" name="student_username"><br>
+        Password: <input type="password" name="student_password"><br>
+        Teacher Username: <input type="text" name="teacher_username"><br>
+    </div>
+
+    <input type="submit" value="Login">
+    <p>No account yet? Are you a teacher? <a href="{{ url_for('auth.register_teacher') }}">Register here!</a></p>
+</form>
+
+<script>
+    const roleRadios = document.querySelectorAll('input[name="role"]');
+    const teacherLogin = document.getElementById('teacher-login');
+    const studentLogin = document.getElementById('student-login');
+
+    roleRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (radio.value === 'teacher') {
+                teacherLogin.style.display = 'block';
+                studentLogin.style.display = 'none';
+            } else {
+                teacherLogin.style.display = 'none';
+                studentLogin.style.display = 'block';
+            }
+        });
+    });
+</script>
