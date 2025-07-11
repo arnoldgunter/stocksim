@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, redirect, url_for
 from auth_routes import auth_bp
 from teacher_routes import teacher_bp
 from admin_routes import admin_bp
@@ -16,6 +16,10 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(teacher_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(student_bp)
+
+@app.route("/")
+def index():
+    return redirect(url_for("auth.login"))  # Or whichever route you want as your landing page
 
 #DELETE WHEN SHIPPING!!!
 @app.route("/debug-users")
