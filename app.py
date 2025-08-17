@@ -30,6 +30,8 @@ def debug_users():
     return "<br>".join([f"{u.id}: {u.username or u.email} ({u.role})" for u in users])
 #DELETE WHEN SHIPPING END!!!
 
+for i in range(1, 6):
+    update_stock_prices()
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=update_stock_prices, trigger="interval", hours=1)
 scheduler.start()
