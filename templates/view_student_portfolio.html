@@ -8,7 +8,6 @@
         <th>Current Value per Share</th>
         <th>Total Value of this Stock owned</th>
         <th>Total Paid</th>
-        <th>Buy/Sell</th>
     </tr>
     {% for stock in portfolio %}
     <tr>
@@ -17,15 +16,6 @@
         <td>{{ stock.current_price }}</td>
         <td>{{ stock.total_value }}</td>
         <td>{{ stock.total_paid }}</td>
-        <td>
-            <a href="#"
-                class="stock-link"
-                data-id="{{ stock.stock_id }}"
-                data-name="{{ stock.name }}"
-                data-price="{{ stock.current_price }}">
-                {{ stock.name }}
-            </a>
-        </td>
     </tr>
     {% endfor %}
 </table>

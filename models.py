@@ -23,7 +23,7 @@ class User(Base):
     students = relationship("User", back_populates="teacher")
 
     # Stock holdings
-    holdings = relationship("StudentStock", back_populates="student")
+    holdings = relationship("StudentStock", back_populates="student", cascade="all, delete-orphan")
 
 class Stock(Base):
     __tablename__ = "stocks"
