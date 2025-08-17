@@ -9,7 +9,7 @@ def seed_stocks():
         db.close()
         return
 
-    stocks_to_add = [
+   stocks_to_add = [
         # (symbol, name, price, volatility, category, monthly_change)
         ("OLSM", "Olkasor Silberminen", 22.34, 0.002, "Certificate", 0.03),
         ("GREC", "Kaiserreich Gulriath ETF", 32.00, 0.05, "ETF", 0.06),
