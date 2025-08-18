@@ -1,5 +1,8 @@
 from flask import Blueprint, render_template, session, redirect, url_for, request, jsonify, flash
 from models import User, SessionLocal, Stock, StudentStock, StockPriceHistory, Trade
+from utils import range_to_start
+from datetime import timezone
+
 
 student_bp = Blueprint("student", __name__, url_prefix="/student")
 
@@ -62,9 +65,16 @@ def change_password():
 
     return redirect(url_for("student.dashboard"))
 
+
 @student_bp.route("/stock-history/<int:stock_id>")
 def student_stock_history(stock_id):
+    range_key = request.args.get("range")  # "1d","1w","1m","3m","1y","all"
+    start_dt = range_to_start(range_key)
+
     db = SessionLocal()
+    q = db.query(StockPriceHistory).filter_by(stock_id=stock_id)
+    if start_dt:
+        q = q.filter(StockPriceHistory.timestamp >= start_dt)
     history = (
         db.query(StockPriceHistory)
         .filter_by(stock_id=stock_id)
@@ -77,6 +87,8 @@ def student_stock_history(stock_id):
         {"timestamp": h.timestamp.strftime("%Y-%m-%d %H:%M"), "price": h.price}
         for h in history
     ])
+
+
 
 @student_bp.route("/holdings/<int:stock_id>")
 def get_student_holdings(stock_id):
@@ -231,41 +243,105 @@ def student_portfolio():
         portfolio_values=portfolio_values,
     )
 
+from collections import defaultdict
+from datetime import datetime
+from flask import jsonify, session
+from sqlalchemy.orm import joinedload
+
 @student_bp.route("/portfolio-history")
 def get_portfolio_history():
     if session.get("role") != "student":
         return jsonify({"error": "Unauthorized"}), 403
 
     db = SessionLocal()
-    user_id = session["user_id"]
+    student_id = session["user_id"]
 
-    # Get all holdings for the student
-    holdings = db.query(StudentStock).filter_by(student_id=user_id).all()
+    # Get student's trades in time order
+    trades = (
+        db.query(Trade)
+        .filter_by(student_id=student_id)
+        .order_by(Trade.timestamp.asc())
+        .all()
+    )
 
-    # Dictionary to store total portfolio value at each timestamp
-    portfolio_history = {}
+    # If no trades, just return empty
+    if not trades:
+        db.close()
+        return jsonify([])
 
-    for holding in holdings:
-        stock_id = holding.stock_id
-        quantity = holding.quantity
+    # Collect stock_ids involved (only those the student traded)
+    stock_ids = sorted({t.stock_id for t in trades})
 
-        # Get the stock price history for that stock
-        history = db.query(StockPriceHistory)\
-                    .filter_by(stock_id=stock_id)\
-                    .order_by(StockPriceHistory.timestamp.asc())\
-                    .all()
+    # Load price histories for these stocks
+    histories = {}
+    all_timestamps = set()
+    for sid in stock_ids:
+        hist = (
+            db.query(StockPriceHistory)
+            .filter_by(stock_id=sid)
+            .order_by(StockPriceHistory.timestamp.asc())
+            .all()
+        )
+        if not hist:
+            # if a stock lacks history, skip (or use trade prices only)
+            histories[sid] = []
+            continue
+        histories[sid] = hist
+        for h in hist:
+            all_timestamps.add(h.timestamp)
 
-        for point in history:
-            timestamp = point.timestamp.strftime("%Y-%m-%d %H:%M")
-            value = quantity * point.price
+    # Also include trade timestamps (so we value right after trades happen)
+    for t in trades:
+        all_timestamps.add(t.timestamp)
 
-            if timestamp not in portfolio_history:
-                portfolio_history[timestamp] = 0.0
-            portfolio_history[timestamp] += value
+    sorted_ts = sorted(all_timestamps)
 
-    # Sort and convert to list
-    sorted_data = sorted(portfolio_history.items())
-    result = [{"timestamp": ts, "value": round(val, 2)} for ts, val in sorted_data]
+    # Pointers / state for single-pass evaluation
+    trade_idx = 0
+    holdings = defaultdict(int)  # stock_id -> quantity
+    price_ptr = {sid: 0 for sid in stock_ids}  # pointer into each stock's history
+    current_price = {sid: None for sid in stock_ids}
+
+    # Initialize current_price to first known price (if any)
+    for sid in stock_ids:
+        if histories[sid]:
+            current_price[sid] = histories[sid][0].price
+
+    results = []
+
+    # Walk forward in time
+    for ts in sorted_ts:
+        # 1) Advance price pointers up to current timestamp
+        for sid in stock_ids:
+            hist = histories[sid]
+            ptr = price_ptr[sid]
+            while ptr < len(hist) and hist[ptr].timestamp <= ts:
+                current_price[sid] = hist[ptr].price
+                ptr += 1
+            price_ptr[sid] = ptr
+
+        # 2) Apply trades that occur at/before current timestamp (each trade exactly once)
+        while trade_idx < len(trades) and trades[trade_idx].timestamp <= ts:
+            tr = trades[trade_idx]
+            if tr.trade_type == "buy":
+                holdings[tr.stock_id] += tr.quantity
+            elif tr.trade_type == "sell":
+                holdings[tr.stock_id] -= tr.quantity
+            trade_idx += 1
+
+        # 3) Compute total value at this timestamp (ONLY stocks with qty > 0)
+        total_value = 0.0
+        for sid, qty in holdings.items():
+            if qty <= 0:
+                continue
+            price = current_price.get(sid)
+            if price is not None:
+                total_value += qty * price
+
+        results.append({
+            "timestamp": ts.strftime("%Y-%m-%d %H:%M"),
+            "value": round(total_value, 2)
+        })
 
     db.close()
-    return jsonify(result)
+    return jsonify(results)

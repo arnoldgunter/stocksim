@@ -1,6 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, session, url_for, jsonify, flash
 from models import User, SessionLocal, Stock, StockPriceHistory
 from sqlalchemy.orm import joinedload
+from datetime import datetime
+
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -65,26 +67,63 @@ def manage_stocks():
     db = SessionLocal()
 
     if request.method == "POST":
-        stock_id = request.form.get("stock_id")
-        new_price = request.form.get("new_price")
-        new_volatility = request.form.get("new_volatility")
-        new_trend = request.form.get("new_trend")
+        try:
+            stock_id = int(request.form.get("stock_id", "").strip() or 0)
+        except ValueError:
+            db.close()
+            # flash("Invalid stock id", "error")
+            return redirect(url_for("admin.manage_stocks"))
+
+        new_price_raw = request.form.get("new_price", "").strip()
+        new_vol_raw = request.form.get("new_volatility", "").strip()
+        new_trend_raw = request.form.get("new_trend", "").strip()
 
         try:
-            stock = db.query(Stock).filter_by(id=stock_id).first()
-            if stock:
-                if new_price:
-                    stock.current_price = round(float(new_price), 2)
-                if new_volatility:
-                    stock.volatility = round(float(new_volatility), 3)
-                if new_trend:
-                    stock.monthly_target_change = round(float(new_trend), 3)
+            stock = db.query(Stock).get(stock_id)
+            if not stock:
+                db.close()
+                # flash("Stock not found", "error")
+                return redirect(url_for("admin.manage_stocks"))
+
+            changed = False
+
+            # Update price (and append history only if price actually changed)
+            if new_price_raw != "":
+                new_price = round(float(new_price_raw), 2)
+                if stock.current_price != new_price:
+                    stock.current_price = new_price
+                    db.add(StockPriceHistory(
+                        stock_id=stock.id,
+                        price=new_price,              # float, not string
+                        timestamp=datetime.utcnow()
+                    ))
+                    changed = True
+
+            # Update volatility
+            if new_vol_raw != "":
+                stock.volatility = round(float(new_vol_raw), 3)
+                changed = True
+
+            # Update monthly target change
+            if new_trend_raw != "":
+                stock.monthly_target_change = round(float(new_trend_raw), 3)
+                changed = True
+
+            if changed:
                 db.commit()
+            # else:
+            #     flash("No changes detected.", "info")
+
         except Exception as e:
             print("Update error:", e)
+            db.rollback()
+            # flash("Failed to update stock.", "error")
+        finally:
+            db.close()
 
         return redirect(url_for("admin.manage_stocks"))
 
+    # GET
     stocks = db.query(Stock).order_by(Stock.name).all()
     db.close()
     return render_template("manage_stocks.html", stocks=stocks)

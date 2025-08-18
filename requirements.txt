@@ -2,8 +2,4 @@ flask
 apscheduler
 sqlalchemy
 datetime
-<<<<<<< HEAD
 gunicorn
-=======
-gunicorn
->>>>>>> b910cd03af9946d1a921e46bd11132f06dda7131
